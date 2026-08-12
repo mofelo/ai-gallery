@@ -5,3 +5,4 @@ target/
 .vite/
 *.log
 .DS_Store
+.claude/memory/

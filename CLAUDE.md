@@ -37,6 +37,21 @@ ai-gallery/
 └── CLAUDE.md      — 本文件
 ```
 
+## 自动记忆规则
+
+此项目配置了 hooks 自动记忆系统（`.claude/settings.json`）：
+- **SessionStart**: 自动加载 `.claude/memory/MEMORY.md` 索引
+- **SessionStop**: 自动创建今日记忆文件 `.claude/memory/<日期>.md`
+- **压缩**: 运行 `bash .claude/hooks/compress.sh` 归档旧记录
+
+**作为 AI，请在以下时机自动写入记忆：**
+1. 做出重要架构决策时 → 写入 `architecture.md`（永久文件）
+2. 部署信息变更时 → 写入 `deployment.md`（永久文件）
+3. 会话结束时 → 写入今日日期文件，包含：
+   - 关键决策摘要
+   - 修改了哪些文件
+   - 待办事项
+
 ## 关键约定
 
 - `OWNER = "mofelo"`（在 `core/src/github_api.rs` 中）

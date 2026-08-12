@@ -1,0 +1,6 @@
+{
+    "hooks": {
+        "SessionStart": ["cat .claude/memory/MEMORY.md"],
+        "SessionStop": ["bash .claude/hooks/session-save.sh"]
+    }
+}
