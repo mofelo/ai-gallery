@@ -3,43 +3,24 @@
 //! 端点: GET /api/stats
 //! 聚合展示：模型使用频率、标签分布、prompt token 频率、seed 分布、每月趋势
 
-use crate::github::{get_token, github_api};
+use crate::db;
 use crate::handlers::cluster::extract_prompt_tokens;
 use ai_gallery_core::error::ApiError;
 use ai_gallery_core::response;
-use ai_gallery_core::types::ImageRecord;
 use std::collections::HashMap;
 use worker::*;
 
 /// GET /api/stats
 pub async fn handle_stats(ctx: RouteContext<()>) -> Result<Response> {
-    let token = get_token(&ctx).await;
-    if token.is_empty() {
-        return Response::from_json(&response::err(&ApiError::Unauthorized));
-    }
-
-    let value = match github_api(
-        &token,
-        "ai-images",
-        "GET",
-        "issues?state=open&per_page=100",
-        None,
-    )
-    .await
-    {
-        Ok(v) => v,
-        Err(e) => return Response::from_json(&response::err(&e)),
+    let database = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     };
 
-    let issues = value
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|i| i.get("pull_request").is_none())
-        .collect::<Vec<_>>();
-
-    let records: Vec<ImageRecord> = issues.iter().filter_map(ImageRecord::from_issue).collect();
+    let records = match db::fetch_all(&database).await {
+        Ok(r) => r,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    };
 
     // 1. 模型使用频率
     let mut model_freq: HashMap<String, usize> = HashMap::new();

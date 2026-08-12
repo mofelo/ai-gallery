@@ -2,5 +2,15 @@ name = "ai-gallery-api"
 main = "build/worker/shim.mjs"
 compatibility_date = "2026-07-01"
 
-[env]
-vars = { RUST_BACKTRACE = "1" }
+[vars]
+RUST_BACKTRACE = "1"
+IMGBED_URL = "https://img.boxblog.ccwu.cc"
+GITHUB_NOTES_REPO = "mofelo/ai-notes"
+
+[[d1_databases]]
+binding = "ai_gallery"
+database_name = "ai-gallery"
+database_id = "bb376194-1ef6-4d28-9da9-eba688ffc2be"
+
+[triggers]
+crons = ["*/10 * * * *"]

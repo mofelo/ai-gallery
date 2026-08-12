@@ -1,32 +1,48 @@
 //! 图片列表 & 搜索处理器
 //!
 //! 端点:
-//!   GET /api/images — 列出所有图片（支持分页: ?page=0&per_page=50）
-//!   GET /api/images/:number — 单张图片详情
-//!   GET /api/search?q=xxx — 搜索（prompt/模型/标签）
-//!   GET /api/search?model=xxx&tag=yyy — 按条件筛选
+//!   GET  /api/images — 列出所有图片（支持分页: ?page=0&per_page=50）
+//!   GET  /api/images/:number — 单张图片详情
+//!   POST /api/images — 创建新图片记录
+//!   GET  /api/search?q=xxx&model=yyy&tag=zzz&seed=123 — 搜索
 //!
-//! 数据源: GitHub Issues (ai-images 仓库)
+//! 数据源: D1 (ai_images 表)
 
-use crate::github::{get_token, github_api};
+use crate::db;
 use ai_gallery_core::error::ApiError;
 use ai_gallery_core::response;
 use ai_gallery_core::types::ImageRecord;
+use chrono::Utc;
+use serde::Deserialize;
 use serde_json::Value;
 use worker::*;
 
-/// 从 GitHub Issue 原始数据中提取 AI 图片字段
-/// 支持 frontmatter 格式和旧格式
-fn extract_image_fields(issue: &Value) -> Option<ImageRecord> {
-    ImageRecord::from_issue(issue)
+/// 创建图片请求体（不含 number/created_at/updated_at）
+#[derive(Debug, Deserialize)]
+pub struct CreateImageRequest {
+    pub png_url: String,
+    pub prompt: String,
+    pub negative: Option<String>,
+    pub seed: Option<u64>,
+    pub model: Option<String>,
+    pub model_hash: Option<String>,
+    pub cfg_scale: Option<f64>,
+    pub steps: Option<u32>,
+    pub sampler: Option<String>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub loras: Option<String>,
+    pub source: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub title: Option<String>,
 }
 
 /// GET /api/images — 列出所有 AI 图片
 pub async fn handle_images(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let token = get_token(&ctx).await;
-    if token.is_empty() {
-        return Response::from_json(&response::err(&ApiError::Unauthorized));
-    }
+    let db = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    };
 
     // 分页参数
     let url = req.url()?;
@@ -42,47 +58,15 @@ pub async fn handle_images(req: Request, ctx: RouteContext<()>) -> Result<Respon
         .and_then(|(_, v)| v.parse().ok())
         .unwrap_or(50);
 
-    // 拉取 Issues
-    let value = match github_api(
-        &token,
-        "ai-images",
-        "GET",
-        "issues?state=open&per_page=100",
-        None,
-    )
-    .await
-    {
-        Ok(v) => v,
-        Err(e) => return Response::from_json(&response::err(&e)),
+    let records = match db::fetch_all(&db).await {
+        Ok(r) => r,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     };
 
-    let issues = value
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|i| i.get("pull_request").is_none())
-        .collect::<Vec<_>>();
-
-    // 解析为 ImageRecord
-    let mut records: Vec<ImageRecord> = issues
-        .iter()
-        .filter_map(extract_image_fields)
-        .collect();
-
-    // 按创建时间降序排列
-    records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-
-    // 分页
     let total = records.len();
     let start = page * per_page;
-    let paged: Vec<&ImageRecord> = records
-        .iter()
-        .skip(start)
-        .take(per_page)
-        .collect();
+    let paged: Vec<&ImageRecord> = records.iter().skip(start).take(per_page).collect();
 
-    // 转换为 JSON 响应
     let items: Vec<Value> = paged
         .iter()
         .map(|r| {
@@ -115,18 +99,13 @@ pub async fn handle_images(req: Request, ctx: RouteContext<()>) -> Result<Respon
 
 /// GET /api/images/:number — 单张图片详情
 pub async fn handle_image_detail(ctx: RouteContext<()>, number: u64) -> Result<Response> {
-    let token = get_token(&ctx).await;
-    if token.is_empty() {
-        return Response::from_json(&response::err(&ApiError::Unauthorized));
-    }
-
-    let value = match github_api(&token, "ai-images", "GET", &format!("issues/{}", number), None).await {
-        Ok(v) => v,
-        Err(e) => return Response::from_json(&response::err(&e)),
+    let db = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     };
 
-    match extract_image_fields(&value) {
-        Some(record) => Response::from_json(&response::ok(serde_json::json!({
+    match db::fetch_one(&db, number).await {
+        Ok(Some(record)) => Response::from_json(&response::ok(serde_json::json!({
             "number": record.number,
             "title": record.title,
             "prompt": record.prompt,
@@ -145,20 +124,68 @@ pub async fn handle_image_detail(ctx: RouteContext<()>, number: u64) -> Result<R
             "loras": record.loras,
             "source": record.source,
         }))),
-        None => Response::from_json(&response::err(&ApiError::NotFound(
+        Ok(None) => Response::from_json(&response::err(&ApiError::NotFound(
             format!("image #{}", number),
         ))),
+        Err(e) => Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    }
+}
+
+/// POST /api/images — 创建新图片记录
+pub async fn handle_create_image(req: &mut Request, ctx: RouteContext<()>) -> Result<Response> {
+    let db = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    };
+
+    let body: CreateImageRequest = match req.json().await {
+        Ok(b) => b,
+        Err(_) => {
+            return Response::from_json(&response::err(&ApiError::Other(
+                "Invalid JSON body".to_string(),
+            )))
+        }
+    };
+
+    let created_at = Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let rec = ImageRecord {
+        number: 0, // D1 自增
+        png_url: body.png_url,
+        prompt: body.prompt,
+        negative: body.negative,
+        seed: body.seed.unwrap_or(0),
+        model: body.model,
+        model_hash: body.model_hash,
+        cfg_scale: body.cfg_scale,
+        steps: body.steps,
+        sampler: body.sampler,
+        width: body.width,
+        height: body.height,
+        loras: body.loras,
+        source: body.source,
+        tags: body.tags.unwrap_or_default(),
+        title: body.title.unwrap_or_default(),
+        created_at: created_at.clone(),
+        updated_at: Some(created_at),
+    };
+
+    match db::insert(&db, &rec).await {
+        Ok(id) => Response::from_json(&response::ok(serde_json::json!({
+            "number": id,
+            "created_at": rec.created_at,
+        }))),
+        Err(e) => Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     }
 }
 
 /// GET /api/search — 搜索图片
 pub async fn handle_search(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let token = get_token(&ctx).await;
-    if token.is_empty() {
-        return Response::from_json(&response::err(&ApiError::Unauthorized));
-    }
+    let db = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    };
 
-    // 解析搜索参数
     let url = req.url()?;
     let query = url.query_pairs().collect::<Vec<_>>();
     let q = query
@@ -178,70 +205,20 @@ pub async fn handle_search(req: Request, ctx: RouteContext<()>) -> Result<Respon
         .find(|(k, _)| k == "seed")
         .and_then(|(_, v)| v.parse::<u64>().ok());
 
-    // 拉取所有 Issues
-    let value = match github_api(
-        &token,
-        "ai-images",
-        "GET",
-        "issues?state=open&per_page=100",
-        None,
+    let records = match db::search(
+        &db,
+        q.as_deref(),
+        model_filter.as_deref(),
+        tag_filter.as_deref(),
+        seed_filter,
     )
     .await
     {
-        Ok(v) => v,
-        Err(e) => return Response::from_json(&response::err(&e)),
+        Ok(r) => r,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     };
 
-    let issues = value
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|i| i.get("pull_request").is_none())
-        .collect::<Vec<_>>();
-
-    let records: Vec<ImageRecord> = issues.iter().filter_map(extract_image_fields).collect();
-
-    // 筛选
-    let mut filtered: Vec<&ImageRecord> = records
-        .iter()
-        .filter(|r| {
-            // 全文搜索（prompt/标题/标签）
-            if let Some(ref search_q) = q {
-                if !r.prompt.to_lowercase().contains(search_q)
-                    && !r.title.to_lowercase().contains(search_q)
-                    && !r.tags.iter().any(|t| t.to_lowercase().contains(search_q))
-                    && !r.model.as_ref().map(|m| m.to_lowercase().contains(search_q)).unwrap_or(false)
-                {
-                    return false;
-                }
-            }
-            // 按模型筛选
-            if let Some(ref m) = model_filter {
-                if !r.model.as_ref().map(|v| v.to_lowercase().contains(m)).unwrap_or(false) {
-                    return false;
-                }
-            }
-            // 按标签筛选
-            if let Some(ref t) = tag_filter {
-                if !r.tags.iter().any(|tag| tag.to_lowercase().contains(t)) {
-                    return false;
-                }
-            }
-            // 按种子筛选
-            if let Some(s) = seed_filter {
-                if r.seed != s {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
-
-    // 按创建时间降序排列
-    filtered.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-
-    let items: Vec<Value> = filtered
+    let items: Vec<Value> = records
         .iter()
         .map(|r| {
             serde_json::json!({

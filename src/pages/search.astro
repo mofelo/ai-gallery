@@ -1,60 +1,70 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import { fetchStats } from '../lib/api';
 
 const { data: stats } = await fetchStats();
 ---
 
 <Layout title="搜索 — AI Gallery">
-  <div class="min-h-screen bg-neutral-950 text-neutral-100">
-    <header class="border-b border-neutral-800">
-      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-6">
-        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 画廊</a>
-        <h1 class="text-xl font-bold">🔍 搜索</h1>
-      </div>
-    </header>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex items-center gap-4 mb-8">
+      <a href="/" class="btn btn-ghost !py-1.5">
+        <Icon name="chevron-left" size={16} />
+        返回
+      </a>
+      <h1 class="title-lg">搜索</h1>
+    </div>
 
-    <main class="max-w-6xl mx-auto px-4 py-8">
-      <!-- 搜索框 -->
-      <div class="flex gap-3 mb-8">
+    <!-- 搜索框 -->
+    <div class="flex gap-3 mb-8">
+      <div class="relative flex-1">
+        <Icon name="search" size={18} class="text-fg-dim absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           id="search-input"
           type="text"
           placeholder="搜索 prompt / 标题 / 标签 / 模型关键词..."
-          class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-500"
+          class="input !pl-10"
         />
-        <button
-          id="search-btn"
-          class="bg-sky-600 hover:bg-sky-500 text-white px-6 rounded-xl text-sm font-medium transition"
-        >搜索</button>
       </div>
+      <button
+        id="search-btn"
+        class="btn btn-primary shrink-0"
+      >
+        <Icon name="search" size={16} />
+        搜索
+      </button>
+    </div>
 
-      <!-- 快捷标签 -->
-      {stats && stats.top_tags.length > 0 && (
-        <div class="mb-8">
-          <div class="text-xs text-neutral-500 mb-2">热门标签</div>
-          <div class="flex flex-wrap gap-2">
-            {stats.top_tags.slice(0, 15).map(([tag, count]) => (
-              <button
-                data-tag={tag}
-                class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 px-3 py-1 rounded-full text-xs text-neutral-300 transition"
-              >{tag} <span class="text-neutral-500">({count})</span></button>
-            ))}
-          </div>
+    <!-- 快捷标签 -->
+    {stats && stats.top_tags.length > 0 && (
+      <div class="mb-8">
+        <div class="caption mb-2.5">热门标签</div>
+        <div class="flex flex-wrap gap-2">
+          {stats.top_tags.slice(0, 15).map(([tag, count]) => (
+            <button
+              data-tag={tag}
+              class="chip"
+            >
+              <Icon name="tag" size={12} class="text-fg-dim" />
+              {tag}
+              <span class="text-fg-dim">({count})</span>
+            </button>
+          ))}
         </div>
-      )}
-
-      <!-- 结果 -->
-      <div id="results" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"></div>
-      <div id="empty" class="hidden text-center py-20 text-neutral-500">
-        <div class="text-5xl mb-4">🔎</div>
-        <p>未找到匹配图片</p>
       </div>
-    </main>
-  </div>
+    )}
+
+    <!-- 结果 -->
+    <div id="results" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5"></div>
+    <div id="empty" class="hidden text-center py-20">
+      <Icon name="search" size={56} class="text-fg-dim mx-auto" />
+      <p class="body text-fg-muted mt-4">未找到匹配图片</p>
+    </div>
+  </main>
 
   <script>
-    const API_BASE = import.meta.env.API_BASE || 'https://ai-gallery-api.tiklt1.workers.dev';
+    const API_BASE = import.meta.env.API_BASE || 'https://ai-gallery-api.baobaolong12.workers.dev';
     const resultsEl = document.getElementById('results');
     const emptyEl = document.getElementById('empty');
 
@@ -73,11 +83,13 @@ const { data: stats } = await fetchStats();
       emptyEl.classList.add('hidden');
 
       resultsEl.innerHTML = items.map((img: any) => `
-        <a href="/image/${img.number}" class="group bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 hover:border-neutral-600 transition">
-          <img src="${img.png_url}" alt="${img.title}" loading="lazy" class="w-full aspect-square object-cover group-hover:scale-105 transition duration-300" />
+        <a href="/image/${img.number}" class="card card-hover overflow-hidden group" aria-label="${img.title}">
+          <div class="aspect-square overflow-hidden bg-surface-2">
+            <img src="${img.png_url}" alt="${img.title}" loading="lazy" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" />
+          </div>
           <div class="p-3">
-            <h3 class="text-sm font-medium truncate">${img.title}</h3>
-            <div class="text-xs text-neutral-500 mt-1 truncate">${img.model || '未知'}</div>
+            <h3 class="title-md truncate">${img.title}</h3>
+            <div class="caption mt-1 truncate">${img.model || '未知'}</div>
           </div>
         </a>
       `).join('');

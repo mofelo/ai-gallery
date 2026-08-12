@@ -2,14 +2,14 @@
 name = "ai-gallery-cli"
 version = "0.1.0"
 edition = "2021"
-description = "AI Gallery CLI — upload images, parse PNG metadata, create GitHub Issues"
+description = "AI Gallery CLI — upload images, parse PNG metadata, create records via Worker API"
 
 [[bin]]
 name = "ai-gallery-cli"
 path = "src/main.rs"
 
 [dependencies]
-ai-gallery-core = { path = "../core", default-features = false, features = ["native"] }
+ai-gallery-core = { path = "../core" }
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 clap = { version = "4", features = ["derive", "env"] }

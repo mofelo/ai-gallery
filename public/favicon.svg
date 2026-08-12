@@ -1,3 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <text y="70" font-size="80">🎨</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- AI Gallery brand icon — stylized frame with spark -->
+  <rect x="15" y="15" width="70" height="70" rx="12" stroke="#7c6af0" stroke-width="6"/>
+  <circle cx="38" cy="38" r="8" fill="#a5b4fc"/>
+  <path d="M25 72 L48 49 L58 59 L75 42" stroke="#7c6af0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M80 24 L84 20 M80 20 L84 24" stroke="#7c6af0" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="80" cy="22" r="8" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="3 3"/>
 </svg>

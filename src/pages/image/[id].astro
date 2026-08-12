@@ -1,127 +1,213 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import { fetchImageDetail } from '../../lib/api';
 
 const { id } = Astro.params;
 const number = Number(id);
 const { data: img } = await fetchImageDetail(number);
+
+const genParams: { label: string; value: string; icon: any }[] = [
+  { label: '模型', value: img?.model || '-', icon: 'model' },
+  { label: '种子', value: img ? String(img.seed) : '-', icon: 'seed' },
+  { label: 'CFG', value: img?.cfg_scale != null ? String(img.cfg_scale) : '-', icon: 'settings' },
+  { label: '步数', value: img?.steps != null ? String(img.steps) : '-', icon: 'stats' },
+  { label: '采样器', value: img?.sampler || '-', icon: 'tag' },
+  { label: '尺寸', value: img ? `${img.width ?? '?'}×${img.height ?? '?'}` : '-', icon: 'image' },
+  { label: '来源', value: img?.source || '-', icon: 'model' },
+  { label: '创建时间', value: img?.created_at || '-', icon: 'calendar' },
+];
 ---
 
 <Layout title={img?.title || '图片详情'}>
-  <div class="min-h-screen bg-neutral-950 text-neutral-100">
-    <header class="border-b border-neutral-800">
-      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-4">
-        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 返回画廊</a>
-        <span class="text-sm text-neutral-600"># {number}</span>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex items-center gap-4 mb-8">
+      <a href="/" class="btn btn-ghost !py-1.5">
+        <Icon name="chevron-left" size={16} />
+        返回画廊
+      </a>
+      <span class="caption mono" data-number={number}># {number}</span>
+    </div>
+
+    {!img ? (
+      <div class="text-center py-24">
+        <Icon name="error" size={56} class="text-fg-dim mx-auto" />
+        <p class="title-md mt-6">图片 # {number} 未找到</p>
       </div>
-    </header>
-
-    <main class="max-w-6xl mx-auto px-4 py-8">
-      {!img ? (
-        <div class="text-center py-20 text-neutral-500">
-          <div class="text-5xl mb-4">🔍</div>
-          <p>图片 # {number} 未找到</p>
+    ) : (
+      <div class="grid md:grid-cols-2 gap-5">
+        <!-- 图片（左，sticky） -->
+        <div class="card overflow-hidden !p-0 bg-bg-deep sticky top-20 self-start">
+          <img src={img.png_url} alt={img.title} class="w-full object-contain" />
         </div>
-      ) : (
-        <div class="grid md:grid-cols-2 gap-8">
-          <!-- 图片 -->
-          <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800">
-            <img src={img.png_url} alt={img.title} class="w-full object-contain bg-neutral-900" />
+
+        <!-- 元数据（右） -->
+        <div class="space-y-5">
+          <!-- 标题 + 标签 -->
+          <div>
+            <h1 class="title-xl">{img.title}</h1>
+            <div class="flex flex-wrap gap-2 mt-3">
+              {img.tags.map((tag) => (
+                <span class="chip">
+                  <Icon name="tag" size={12} class="text-fg-dim" />
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
 
-          <!-- 元数据面板 -->
-          <div class="space-y-6">
-            <div>
-              <h1 class="text-2xl font-bold">{img.title}</h1>
-              <div class="flex flex-wrap gap-2 mt-3">
-                {img.tags.map((tag) => (
-                  <span class="bg-neutral-800 text-neutral-300 text-xs px-2 py-1 rounded-full">{tag}</span>
-                ))}
+          <!-- Prompt（主角，紧跟标题） -->
+          <div class="card overflow-hidden !p-0 border-accent/25">
+            <div class="px-4 py-2.5 bg-accent-dim/50 border-b hairline flex items-center justify-between">
+              <span class="title-md flex items-center gap-2">
+                <Icon name="search" size={16} class="text-accent-soft" />
+                Prompt
+              </span>
+              <button data-copy class="flex items-center gap-1.5 text-xs text-accent-soft hover:text-accent transition duration-150">
+                <Icon name="copy" size={14} />
+                复制
+              </button>
+            </div>
+            <p class="px-4 py-3.5 body text-fg leading-relaxed break-words">{img.prompt}</p>
+          </div>
+
+          <!-- Negative -->
+          {img.negative && (
+            <div class="card overflow-hidden !p-0">
+              <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+                <span class="title-md text-fg-dim">Negative</span>
+              </div>
+              <p class="px-4 py-3 body mono text-fg-dim leading-relaxed break-words">{img.negative}</p>
+            </div>
+          )}
+
+          <!-- 生成参数（紧凑网格） -->
+          <div class="card overflow-hidden !p-0">
+            <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+              <span class="title-md">生成参数</span>
+            </div>
+            <dl class="body grid grid-cols-2 gap-px bg-border/40">
+              {genParams.map((p) => (
+                <div class="flex items-center justify-between gap-2 px-4 py-2.5 bg-surface">
+                  <dt class="flex items-center gap-1.5 text-fg-muted text-xs whitespace-nowrap">
+                    <Icon name={p.icon} size={13} class="text-fg-dim" />
+                    {p.label}
+                  </dt>
+                  <dd class="mono text-sm text-right truncate">{p.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <!-- LoRA -->
+          {img.loras && (
+            <div class="card overflow-hidden !p-0">
+              <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+                <span class="title-md">LoRA</span>
+              </div>
+              <p class="px-4 py-3 body mono text-fg-muted break-words">{img.loras}</p>
+            </div>
+          )}
+
+          <!-- 私人笔记 -->
+          <div class="card overflow-hidden !p-0">
+            <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline flex items-center gap-2">
+              <Icon name="note" size={16} class="text-accent-soft" />
+              <span class="title-md">笔记</span>
+            </div>
+            <div class="px-4 py-3 space-y-3">
+              <div id="notes-list" class="space-y-2"></div>
+              <div class="flex gap-2">
+                <textarea id="note-input" class="input !min-h-[60px] text-sm" placeholder="添加私人笔记..."></textarea>
+                <button id="note-add" class="btn btn-primary !py-1.5 self-end shrink-0">
+                  <Icon name="note" size={14} />
+                  添加
+                </button>
               </div>
             </div>
-
-            <!-- 生成参数 -->
-            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
-              <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">生成参数</div>
-              <dl class="text-sm">
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">模型</dt>
-                  <dd class="font-mono">{img.model || '-'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">种子</dt>
-                  <dd class="font-mono">{img.seed}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">CFG</dt>
-                  <dd class="font-mono">{img.cfg_scale ?? '-'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">步数</dt>
-                  <dd class="font-mono">{img.steps ?? '-'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">采样器</dt>
-                  <dd class="font-mono">{img.sampler ?? '-'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">尺寸</dt>
-                  <dd class="font-mono">{img.width ?? '?'}×{img.height ?? '?'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
-                  <dt class="text-neutral-400">来源</dt>
-                  <dd class="font-mono">{img.source ?? '-'}</dd>
-                </div>
-                <div class="flex justify-between px-4 py-2">
-                  <dt class="text-neutral-400">创建时间</dt>
-                  <dd class="font-mono">{img.created_at}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <!-- Prompt -->
-            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
-              <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 flex justify-between">
-                <span class="text-sm font-medium">Prompt</span>
-                <button data-copy class="text-xs text-sky-400 hover:text-sky-300">复制</button>
-              </div>
-              <p class="px-4 py-3 text-sm text-neutral-300 font-mono leading-relaxed break-words">{img.prompt}</p>
-            </div>
-
-            <!-- Negative -->
-            {img.negative && (
-              <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
-                <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">Negative Prompt</div>
-                <p class="px-4 py-3 text-sm text-neutral-400 font-mono leading-relaxed break-words">{img.negative}</p>
-              </div>
-            )}
-
-            <!-- LoRA -->
-            {img.loras && (
-              <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
-                <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">LoRA</div>
-                <p class="px-4 py-3 text-sm text-neutral-400 font-mono break-words">{img.loras}</p>
-              </div>
-            )}
           </div>
         </div>
-      )}
-    </main>
-  </div>
+      </div>
+    )}
+  </main>
 
   <script>
+    import { fetchNotes, createNote, deleteNote } from '../../lib/api';
+
+    // === Copy Prompt ===
     document.querySelectorAll('[data-copy]').forEach((btn) => {
+      const originalHTML = btn.innerHTML;
       btn.addEventListener('click', async () => {
-        const block = btn.closest('div').parentElement.querySelector('p');
+        const card = btn.closest('.card');
+        const block = card ? card.querySelector('p') : null;
         const text = block ? block.textContent || '' : '';
         try {
           await navigator.clipboard.writeText(text);
-          btn.textContent = '已复制 ✓';
-          setTimeout(() => (btn.textContent = '复制'), 1500);
+          btn.innerHTML = '已复制 ✓';
+          setTimeout(() => (btn.innerHTML = originalHTML), 1500);
         } catch {
           btn.textContent = '复制失败';
         }
       });
     });
+
+    // === Notes ===
+    const numberEl = document.querySelector('[data-number]');
+    const number = numberEl ? parseInt(numberEl.getAttribute('data-number') || '0', 10) : 0;
+    const notesList = document.getElementById('notes-list');
+    const noteInput = document.getElementById('note-input') as HTMLTextAreaElement;
+    const noteAdd = document.getElementById('note-add');
+
+    function escapeHtml(text: string): string {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    const closeIcon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+    async function loadNotes() {
+      if (!notesList || !number) return;
+      const result = await fetchNotes(number);
+      const notes = result.data || [];
+      if (notes.length === 0) {
+        notesList.innerHTML = '<p class="text-fg-dim text-sm">还没有笔记</p>';
+        return;
+      }
+      notesList.innerHTML = notes.map((n) => `
+        <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-2/40" data-note-id="${n.id}">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-fg whitespace-pre-wrap break-words">${escapeHtml(n.content)}</p>
+            <p class="text-xs text-fg-dim mt-1">${escapeHtml(n.created_at)}</p>
+          </div>
+          <button data-note-delete="${n.id}" class="btn btn-ghost !py-1 !px-2 !text-xs shrink-0">${closeIcon}</button>
+        </div>
+      `).join('');
+    }
+
+    // Add note
+    noteAdd?.addEventListener('click', async () => {
+      const content = noteInput?.value.trim();
+      if (!content || !number) return;
+      const result = await createNote(number, content);
+      if (result.data) {
+        if (noteInput) noteInput.value = '';
+        await loadNotes();
+      }
+    });
+
+    // Delete note (delegated)
+    notesList?.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      const deleteBtn = target.closest('[data-note-delete]') as HTMLElement;
+      if (!deleteBtn || !number) return;
+      const noteId = parseInt(deleteBtn.getAttribute('data-note-delete') || '0', 10);
+      if (!noteId) return;
+      await deleteNote(number, noteId);
+      await loadNotes();
+    });
+
+    // Initial load
+    if (number) loadNotes();
   </script>
 </Layout>

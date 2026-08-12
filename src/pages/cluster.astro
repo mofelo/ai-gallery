@@ -1,87 +1,110 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import { fetchCluster } from '../lib/api';
 
 const { data: cluster } = await fetchCluster();
+
+const filterTypes = [
+  { type: 'all', label: '全部', icon: 'gallery' },
+  { type: 'model', label: '按模型', icon: 'model' },
+  { type: 'prompt_token', label: '按 Prompt', icon: 'search' },
+  { type: 'seed_variant', label: '按变体', icon: 'seed' },
+  { type: 'tag', label: '按标签', icon: 'tag' },
+  { type: 'time', label: '按时间', icon: 'calendar' },
+];
 ---
 
 <Layout title="聚类 — AI Gallery">
-  <div class="min-h-screen bg-neutral-950 text-neutral-100">
-    <header class="border-b border-neutral-800">
-      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-6">
-        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 画廊</a>
-        <h1 class="text-xl font-bold">🧩 聚类</h1>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex items-center gap-4 mb-8">
+      <a href="/" class="btn btn-ghost !py-1.5">
+        <Icon name="chevron-left" size={16} />
+        返回
+      </a>
+      <h1 class="title-lg">聚类</h1>
+    </div>
+
+    {!cluster ? (
+      <div class="text-center py-24">
+        <Icon name="cluster" size={48} class="text-fg-dim mx-auto" />
+        <p class="body text-fg-muted mt-4">加载中...</p>
       </div>
-    </header>
+    ) : (
+      <>
+        <!-- 类型筛选 -->
+        <div class="flex gap-2 mb-6 flex-wrap">
+          {filterTypes.map((f) => (
+            <button
+              data-type={f.type}
+              class="type-btn chip"
+            >
+              <Icon name={f.icon} size={14} />
+              {f.label}
+            </button>
+          ))}
+        </div>
 
-    <main class="max-w-6xl mx-auto px-4 py-8">
-      {!cluster ? (
-        <div class="text-center py-20 text-neutral-500">加载中...</div>
-      ) : (
-        <>
-          <!-- 类型筛选 -->
-          <div class="flex gap-2 mb-6 flex-wrap">
-            <button data-type="all" class="type-btn bg-sky-600 text-white px-4 py-1.5 rounded-full text-sm transition">全部</button>
-            <button data-type="model" class="type-btn bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-1.5 rounded-full text-sm transition">按模型</button>
-            <button data-type="prompt_token" class="type-btn bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-1.5 rounded-full text-sm transition">按 Prompt</button>
-            <button data-type="seed_variant" class="type-btn bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-1.5 rounded-full text-sm transition">按变体</button>
-            <button data-type="tag" class="type-btn bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-1.5 rounded-full text-sm transition">按标签</button>
-            <button data-type="time" class="type-btn bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-4 py-1.5 rounded-full text-sm transition">按时间</button>
+        <!-- 簇网格 -->
+        <div id="cluster-grid" class="grid md:grid-cols-2 gap-5">
+          {cluster.clusters.map((c) => (
+            <section
+              data-cluster
+              data-type={c.type}
+              class="card p-5"
+            >
+              <div class="flex items-center gap-3 mb-4">
+                <span class="w-3 h-3 rounded-full shrink-0" style={`background:${c.color}`}></span>
+                <h2 class="title-md truncate">{c.label}</h2>
+                <span class="ml-auto caption">{c.nodeIds.length} 张</span>
+              </div>
+              <div class="grid grid-cols-4 gap-2">
+                {c.nodeIds.slice(0, 8).map((nodeId) => {
+                  const node = cluster.nodes.find((n) => n.id === nodeId);
+                  if (!node) return null;
+                  return (
+                    <a
+                      href={`/image/${node.number}`}
+                      class="group relative aspect-square rounded-lg overflow-hidden bg-surface-2 border hairline"
+                      aria-label={node.title}
+                    >
+                      <img
+                        src={node.png_url}
+                        alt={node.title}
+                        loading="lazy"
+                        class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      />
+                      <div class="absolute inset-0 bg-bg-deep/60 opacity-0 group-hover:opacity-100 transition flex items-end p-2">
+                        <span class="text-[10px] line-clamp-2 text-fg">{node.title}</span>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {cluster.clusters.length === 0 && (
+          <div class="text-center py-24">
+            <Icon name="cluster" size={56} class="text-fg-dim mx-auto" />
+            <p class="body text-fg-muted mt-4">暂无聚类结果（需要至少 2 张图片共享模型/Prompt/标签）</p>
           </div>
-
-          <!-- 簇网格 -->
-          <div id="cluster-grid" class="grid md:grid-cols-2 gap-6">
-            {cluster.clusters.map((c) => (
-              <section
-                data-cluster
-                data-type={c.type}
-                class="bg-neutral-900 rounded-2xl border border-neutral-800 p-5"
-              >
-                <div class="flex items-center gap-3 mb-4">
-                  <span class="w-3 h-3 rounded-full" style={`background:${c.color}`}></span>
-                  <h2 class="font-bold text-sm truncate">{c.label}</h2>
-                  <span class="ml-auto text-xs text-neutral-500">{c.nodeIds.length} 张</span>
-                </div>
-                <div class="grid grid-cols-4 gap-2">
-                  {c.nodeIds.slice(0, 8).map((nodeId) => {
-                    const node = cluster.nodes.find((n) => n.id === nodeId);
-                    if (!node) return null;
-                    return (
-                      <a href={`/image/${node.number}`} class="group relative aspect-square bg-neutral-800 rounded-lg overflow-hidden">
-                        <img src={node.png_url} alt={node.title} loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                        <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-end p-2">
-                          <span class="text-[10px] line-clamp-2">{node.title}</span>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-
-          {cluster.clusters.length === 0 && (
-            <div class="text-center py-20 text-neutral-500">
-              <div class="text-5xl mb-4">🧩</div>
-              <p>暂无聚类结果（需要至少 2 张图片共享模型/Prompt/标签）</p>
-            </div>
-          )}
-        </>
-      )}
-    </main>
-  </div>
+        )}
+      </>
+    )}
+  </main>
 
   <script>
     document.querySelectorAll('.type-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const type = btn.getAttribute('data-type') || 'all';
+
         // 更新按钮样式
         document.querySelectorAll('.type-btn').forEach((b) => {
-          b.classList.remove('bg-sky-600', 'text-white');
-          b.classList.add('bg-neutral-800', 'text-neutral-300');
+          b.classList.remove('chip-active');
         });
-        btn.classList.add('bg-sky-600', 'text-white');
-        btn.classList.remove('bg-neutral-800', 'text-neutral-300');
+        btn.classList.add('chip-active');
 
         // 过滤簇
         document.querySelectorAll('[data-cluster]').forEach((el) => {
@@ -90,5 +113,9 @@ const { data: cluster } = await fetchCluster();
         });
       });
     });
+
+    // 默认激活"全部"
+    const firstBtn = document.querySelector('.type-btn');
+    if (firstBtn) firstBtn.classList.add('chip-active');
   </script>
 </Layout>

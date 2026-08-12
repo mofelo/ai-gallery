@@ -1,0 +1,329 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+---
+
+<Layout title="上传 — AI Gallery">
+  <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+    <!-- 顶部返回按钮 + 标题 -->
+    <div class="flex items-center gap-4 mb-8">
+      <a href="/" class="btn btn-ghost !py-1.5">
+        <Icon name="chevron-left" size={16} />
+        返回画廊
+      </a>
+      <h1 class="title-lg">上传图片</h1>
+    </div>
+
+    <!-- 模式切换 -->
+    <div class="flex gap-2 mb-6">
+      <button id="mode-file" class="chip chip-active" data-mode="file">
+        <Icon name="upload" size={14} />
+        上传文件
+      </button>
+      <button id="mode-url" class="chip" data-mode="url">
+        <Icon name="image" size={14} />
+        粘贴 URL
+      </button>
+    </div>
+
+    <!-- 上传文件模式 -->
+    <div id="section-file" class="card overflow-hidden !p-0 mb-6">
+      <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+        <span class="title-md">选择图片文件</span>
+      </div>
+      <div class="p-4">
+        <div
+          id="drop-zone"
+          class="border-2 border-dashed border-border rounded-xl p-10 text-center cursor-pointer transition-colors hover:border-accent/50 hover:bg-accent-dim/20"
+        >
+          <Icon name="upload" size={40} class="text-fg-dim mx-auto mb-3" />
+          <p class="body text-fg-muted mb-1">拖拽图片到此处，或点击选择文件</p>
+          <p class="caption">支持 PNG / JPG / WEBP</p>
+          <input
+            id="file-input"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            class="hidden"
+          />
+        </div>
+        <!-- 预览 -->
+        <img id="preview" class="hidden mt-4 max-h-64 rounded-lg object-contain bg-bg-deep" />
+        <p id="upload-status" class="mt-3 text-sm"></p>
+      </div>
+    </div>
+
+    <!-- URL 模式 -->
+    <div id="section-url" class="hidden card overflow-hidden !p-0 mb-6">
+      <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+        <span class="title-md">图片 URL</span>
+      </div>
+      <div class="p-4">
+        <input
+          id="url-input"
+          type="url"
+          class="input"
+          placeholder="https://example.com/image.png"
+        />
+      </div>
+    </div>
+
+    <!-- 隐藏的 png_url 字段 -->
+    <input id="field-png-url" type="hidden" />
+
+    <!-- 元数据卡片 -->
+    <div class="card overflow-hidden !p-0 mb-6">
+      <div class="px-4 py-2.5 bg-surface-2/60 border-b hairline">
+        <span class="title-md">元数据</span>
+      </div>
+      <div class="p-4 space-y-4">
+        <!-- Prompt（必填） -->
+        <div>
+          <label for="field-prompt" class="caption block mb-1.5">Prompt <span class="text-danger">*</span></label>
+          <textarea id="field-prompt" class="input !min-h-[80px]" placeholder="输入图片的 prompt..."></textarea>
+        </div>
+
+        <!-- Negative -->
+        <div>
+          <label for="field-negative" class="caption block mb-1.5">Negative</label>
+          <textarea id="field-negative" class="input !min-h-[60px]" placeholder="负向提示词"></textarea>
+        </div>
+
+        <!-- 标题 -->
+        <div>
+          <label for="field-title" class="caption block mb-1.5">标题</label>
+          <input id="field-title" type="text" class="input" placeholder="图片标题" />
+        </div>
+
+        <!-- seed + model 同行 -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="field-seed" class="caption block mb-1.5">Seed</label>
+            <input id="field-seed" type="number" class="input" placeholder="种子值" />
+          </div>
+          <div>
+            <label for="field-model" class="caption block mb-1.5">模型</label>
+            <input id="field-model" type="text" class="input" placeholder="模型名称" />
+          </div>
+        </div>
+
+        <!-- CFG + 步数 + 采样器 三列 -->
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label for="field-cfg" class="caption block mb-1.5">CFG Scale</label>
+            <input id="field-cfg" type="number" step="0.5" class="input" placeholder="7.0" />
+          </div>
+          <div>
+            <label for="field-steps" class="caption block mb-1.5">步数</label>
+            <input id="field-steps" type="number" class="input" placeholder="20" />
+          </div>
+          <div>
+            <label for="field-sampler" class="caption block mb-1.5">采样器</label>
+            <input id="field-sampler" type="text" class="input" placeholder="Euler a" />
+          </div>
+        </div>
+
+        <!-- 宽 + 高 + 来源 三列 -->
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label for="field-width" class="caption block mb-1.5">宽</label>
+            <input id="field-width" type="number" class="input" placeholder="512" />
+          </div>
+          <div>
+            <label for="field-height" class="caption block mb-1.5">高</label>
+            <input id="field-height" type="number" class="input" placeholder="512" />
+          </div>
+          <div>
+            <label for="field-source" class="caption block mb-1.5">来源</label>
+            <input id="field-source" type="text" class="input" placeholder="来源标识" />
+          </div>
+        </div>
+
+        <!-- LoRA -->
+        <div>
+          <label for="field-loras" class="caption block mb-1.5">LoRA</label>
+          <input id="field-loras" type="text" class="input" placeholder="LoRA 名称或路径" />
+        </div>
+
+        <!-- 标签 -->
+        <div>
+          <label for="field-tags" class="caption block mb-1.5">标签（逗号分隔）</label>
+          <input id="field-tags" type="text" class="input" placeholder="标签1, 标签2, 标签3" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 提交 -->
+    <div class="flex items-center gap-4">
+      <button id="submit-btn" class="btn btn-primary">
+        <Icon name="upload" size={16} />
+        <span id="submit-text">提交</span>
+      </button>
+      <p id="error-msg" class="body text-danger hidden"></p>
+    </div>
+  </main>
+
+  <script>
+    import { uploadImage, createImage } from '../lib/api';
+
+    // === DOM refs ===
+    const modeFile = document.getElementById('mode-file')!;
+    const modeUrl = document.getElementById('mode-url')!;
+    const sectionFile = document.getElementById('section-file')!;
+    const sectionUrl = document.getElementById('section-url')!;
+    const dropZone = document.getElementById('drop-zone')!;
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    const preview = document.getElementById('preview') as HTMLImageElement;
+    const uploadStatus = document.getElementById('upload-status')!;
+    const urlInput = document.getElementById('url-input') as HTMLInputElement;
+    const fieldPngUrl = document.getElementById('field-png-url') as HTMLInputElement;
+    const fieldPrompt = document.getElementById('field-prompt') as HTMLTextAreaElement;
+    const fieldNegative = document.getElementById('field-negative') as HTMLTextAreaElement;
+    const fieldTitle = document.getElementById('field-title') as HTMLInputElement;
+    const fieldSeed = document.getElementById('field-seed') as HTMLInputElement;
+    const fieldModel = document.getElementById('field-model') as HTMLInputElement;
+    const fieldCfg = document.getElementById('field-cfg') as HTMLInputElement;
+    const fieldSteps = document.getElementById('field-steps') as HTMLInputElement;
+    const fieldSampler = document.getElementById('field-sampler') as HTMLInputElement;
+    const fieldWidth = document.getElementById('field-width') as HTMLInputElement;
+    const fieldHeight = document.getElementById('field-height') as HTMLInputElement;
+    const fieldSource = document.getElementById('field-source') as HTMLInputElement;
+    const fieldLoras = document.getElementById('field-loras') as HTMLInputElement;
+    const fieldTags = document.getElementById('field-tags') as HTMLInputElement;
+    const submitBtn = document.getElementById('submit-btn')!;
+    const submitText = document.getElementById('submit-text')!;
+    const errorMsg = document.getElementById('error-msg')!;
+
+    let currentMode: 'file' | 'url' = 'file';
+
+    // === 模式切换 ===
+    function setMode(mode: 'file' | 'url') {
+      currentMode = mode;
+      modeFile.classList.toggle('chip-active', mode === 'file');
+      modeUrl.classList.toggle('chip-active', mode === 'url');
+      sectionFile.classList.toggle('hidden', mode !== 'file');
+      sectionUrl.classList.toggle('hidden', mode !== 'url');
+    }
+
+    modeFile.addEventListener('click', () => setMode('file'));
+    modeUrl.addEventListener('click', () => setMode('url'));
+
+    // === 文件上传 ===
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('!border-accent', '!bg-accent-dim/20');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('!border-accent', '!bg-accent-dim/20');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('!border-accent', '!bg-accent-dim/20');
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        handleFile(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    async function handleFile(file: File) {
+      // 预览
+      preview.src = URL.createObjectURL(file);
+      preview.classList.remove('hidden');
+      uploadStatus.textContent = '上传中...';
+      uploadStatus.className = 'mt-3 text-sm text-fg-muted';
+
+      const result = await uploadImage(file);
+      if (result.error) {
+        uploadStatus.textContent = result.error;
+        uploadStatus.className = 'mt-3 text-sm text-danger';
+        return;
+      }
+      if (result.data?.src) {
+        fieldPngUrl.value = result.data.src;
+        urlInput.value = result.data.src;
+        uploadStatus.textContent = '上传成功 ✓';
+        uploadStatus.className = 'mt-3 text-sm text-success';
+      }
+    }
+
+    // === URL 输入 ===
+    urlInput.addEventListener('input', () => {
+      fieldPngUrl.value = urlInput.value.trim();
+    });
+
+    // === 提交 ===
+    submitBtn.addEventListener('click', async () => {
+      const pngUrl = fieldPngUrl.value.trim();
+      if (!pngUrl) {
+        showError('请上传图片或粘贴图片 URL');
+        return;
+      }
+      const prompt = fieldPrompt.value.trim();
+      if (!prompt) {
+        showError('请输入 Prompt');
+        return;
+      }
+
+      hideError();
+      submitBtn.classList.add('opacity-60', 'pointer-events-none');
+      submitText.textContent = '提交中...';
+
+      const seed = fieldSeed.value ? parseInt(fieldSeed.value, 10) : undefined;
+      const cfg = fieldCfg.value ? parseFloat(fieldCfg.value) : undefined;
+      const steps = fieldSteps.value ? parseInt(fieldSteps.value, 10) : undefined;
+      const width = fieldWidth.value ? parseInt(fieldWidth.value, 10) : undefined;
+      const height = fieldHeight.value ? parseInt(fieldHeight.value, 10) : undefined;
+      const tags = fieldTags.value
+        ? fieldTags.value.split(',').map((t) => t.trim()).filter(Boolean)
+        : undefined;
+
+      const body: any = {
+        png_url: pngUrl,
+        prompt,
+      };
+      if (fieldNegative.value.trim()) body.negative = fieldNegative.value.trim();
+      if (fieldTitle.value.trim()) body.title = fieldTitle.value.trim();
+      if (seed !== undefined) body.seed = seed;
+      if (fieldModel.value.trim()) body.model = fieldModel.value.trim();
+      if (cfg !== undefined) body.cfg_scale = cfg;
+      if (steps !== undefined) body.steps = steps;
+      if (fieldSampler.value.trim()) body.sampler = fieldSampler.value.trim();
+      if (width !== undefined) body.width = width;
+      if (height !== undefined) body.height = height;
+      if (fieldSource.value.trim()) body.source = fieldSource.value.trim();
+      if (fieldLoras.value.trim()) body.loras = fieldLoras.value.trim();
+      if (tags && tags.length > 0) body.tags = tags;
+
+      const result = await createImage(body);
+      submitBtn.classList.remove('opacity-60', 'pointer-events-none');
+      submitText.textContent = '提交';
+
+      if (result.error) {
+        showError(result.error);
+        return;
+      }
+      if (result.data?.number) {
+        window.location.href = '/image/' + result.data.number;
+      } else {
+        showError('创建失败: 未返回图片编号');
+      }
+    });
+
+    function showError(msg: string) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.remove('hidden');
+    }
+
+    function hideError() {
+      errorMsg.classList.add('hidden');
+    }
+  </script>
+</Layout>

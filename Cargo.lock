@@ -29,15 +29,8 @@ dependencies = [
 name = "ai-gallery-core"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "clap",
- "regex-lite",
- "reqwest",
  "serde",
  "serde_json",
- "sha2",
- "tokio",
- "worker",
 ]
 
 [[package]]
@@ -45,6 +38,7 @@ name = "ai-gallery-worker"
 version = "0.1.0"
 dependencies = [
  "ai-gallery-core",
+ "chrono",
  "futures",
  "hex",
  "serde",
@@ -236,7 +230,6 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
- "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -1177,12 +1170,6 @@ checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
  "bitflags",
 ]
-
-[[package]]
-name = "regex-lite"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "reqwest"

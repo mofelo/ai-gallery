@@ -6,8 +6,8 @@
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│ CloudFlare-ImgBed│     │  GitHub Issues   │     │  Rust Worker +   │
-│ (纯图床/存储)    │     │  (元数据/参数)   │     │  Astro 前端      │
+│ CloudFlare-ImgBed│     │  Cloudflare D1   │     │  Rust Worker +   │
+│ (纯图床/存储)    │     │  (数据库/详细层) │     │  Astro 前端      │
 │                  │     │                  │     │                  │
 │ 存图片文件       │     │  prompt/seed/    │     │  聚类/搜索/统计  │
 │ 提供 CDN URL     │     │  model/tags      │     │  推演/详情       │
@@ -25,8 +25,8 @@
 
 1. CLI 上传图片到 CloudFlare-ImgBed → 拿到 CDN URL
 2. CLI 读取 PNG 元数据（prompt/seed/model/...）
-3. CLI 创建 GitHub Issue（ai-images 仓库），body 含 frontmatter 格式元数据
-4. Rust Worker 读取 Issues → 提供 API
+3. CLI POST JSON 到 Worker `/api/images` → 写入 D1 数据库
+4. Rust Worker 读取 D1 → 提供 API（搜索/聚类/统计/推演）
 5. Astro 前端展示图片（`<img src>` 指向 ImgBed CDN URL）
 
 ## 功能
@@ -61,9 +61,12 @@
 ```
 ai-gallery/
 ├── Cargo.toml              # Rust workspace
-├── core/                   # 核心库（类型/错误/响应/GitHub API）
+├── core/                   # 核心库（类型/错误/响应）
 ├── worker/                 # Cloudflare Worker（API + 算法）
-├── issue-cli/              # CLI 工具（上传/解析/建 issue）
+│   ├── src/db.rs           # D1 数据库访问层
+│   ├── src/handlers/       # 处理器（搜索/聚类/统计/推演/标签）
+│   └── migrations/         # D1 建表 SQL
+├── issue-cli/              # CLI 工具（上传/解析/POST Worker API）
 ├── src/                    # Astro 前端
 │   ├── pages/
 │   │   ├── index.astro     # 画廊首页
@@ -92,30 +95,48 @@ npm run build
 wrangler deploy
 ```
 
+### D1 数据库
+
+```bash
+# 创建数据库（首次）
+npx wrangler d1 create ai-gallery
+# 复制得到的 database_id 到 wrangler.toml
+
+# 运行迁移（本地开发）
+npx wrangler d1 execute ai-gallery --local --file=migrations/0001_init.sql
+
+# 运行迁移（生产）
+npx wrangler d1 execute ai-gallery --remote --file=migrations/0001_init.sql
+```
+
 ### 环境变量
 
-Worker 需要设置:
-- `GITHUB_TOKEN` — GitHub Personal Access Token（访问 ai-images 仓库）
+Worker 不需要 secret（D1 无鉴权）。
+
+issue-cli 需要设置:
+- `IMGBED_URL` — ImgBed 上传地址
+- `API_BASE` — Worker API 地址（默认 `https://ai-gallery-api.baobaolong12.workers.dev`）
 
 ## 数据源
 
-GitHub 仓库 `ai-images`，每个 Issue 一张图片，body 使用 YAML frontmatter 格式：
+数据存储在 Cloudflare D1 数据库的 `ai_images` 表，字段：
 
-```yaml
----
-prompt: "cyberpunk girl, neon lights, intricate details"
-negative: "low quality, blurry"
-seed: 123456789
-model: "sd3.5_medium"
-model_hash: "abc123def"
-cfg_scale: 7.0
-steps: 30
-sampler: "DPM++ 2M Karras"
-width: 1024
-height: 1024
-loras: "detail_enhancer"
-source: "A1111"
-png_url: "https://imgbed.example.com/file/123_test.png"
----
-图片描述...
-```
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER | 自增主键（API 中映射为 number） |
+| png_url | TEXT | ImgBed CDN URL |
+| prompt | TEXT | 生成提示词 |
+| negative | TEXT | 反向提示词 |
+| seed | INTEGER | 随机种子 |
+| model | TEXT | 模型名称 |
+| model_hash | TEXT | 模型 Hash |
+| cfg_scale | REAL | CFG Scale |
+| steps | INTEGER | 步数 |
+| sampler | TEXT | 采样器 |
+| width/height | INTEGER | 图片尺寸 |
+| loras | TEXT | 使用的 LoRA |
+| source | TEXT | 图片来源平台 |
+| tags | TEXT | 标签 (JSON 数组) |
+| title | TEXT | 标题 |
+| created_at | TEXT | 创建时间 |
+| updated_at | TEXT | 更新时间 |

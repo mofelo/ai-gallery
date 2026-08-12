@@ -5,7 +5,7 @@
  * 后端返回格式: { success: boolean, data: any, error: { code: string, message: string } | null }
  */
 
-export const API_BASE = import.meta.env.API_BASE || 'https://ai-gallery-api.tiklt1.workers.dev';
+export const API_BASE = import.meta.env.API_BASE || 'https://ai-gallery-api.baobaolong12.workers.dev';
 
 // ==================== 类型定义 ====================
 
@@ -140,4 +140,79 @@ export async function fetchStats(): Promise<{ data: GalleryStats | null; error: 
 export async function fetchDeduce(token: string): Promise<{ data: DeduceResponse | null; error: string | null }> {
   const res = await fetchWithTimeout(`${API_BASE}/api/deduce/${encodeURIComponent(token)}`);
   return parseApiResponse<DeduceResponse>(res);
+}
+
+// ==================== 上传 & 笔记 ====================
+
+export interface NoteRecord {
+  id: number;
+  number: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateImageParams {
+  png_url: string;
+  prompt: string;
+  negative?: string;
+  seed?: number;
+  model?: string;
+  cfg_scale?: number;
+  steps?: number;
+  sampler?: string;
+  width?: number;
+  height?: number;
+  loras?: string;
+  source?: string;
+  tags?: string[];
+  title?: string;
+}
+
+/** 上传图片文件到 ImgBed（经 Worker 代理）。注意返回是 ImgBed 原始数组格式，不是 {success,data} */
+export async function uploadImage(file: File): Promise<{ data: { src: string } | null; error: string | null }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/api/upload`, { method: 'POST', body: formData }, 30000);
+    const body = await res.json();
+    if (Array.isArray(body) && body.length > 0 && body[0]?.src) {
+      return { data: { src: body[0].src }, error: null };
+    }
+    return { data: null, error: '上传响应格式异常' };
+  } catch (e: any) {
+    return { data: null, error: '上传失败: ' + e.message };
+  }
+}
+
+/** 创建图片记录，返回新图片 number */
+export async function createImage(params: CreateImageParams): Promise<{ data: { number: number } | null; error: string | null }> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return parseApiResponse<{ number: number; created_at: string }>(res);
+}
+
+/** 获取图片笔记 */
+export async function fetchNotes(number: number): Promise<{ data: NoteRecord[] | null; error: string | null }> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/images/${number}/notes`);
+  return parseApiResponse<NoteRecord[]>(res);
+}
+
+/** 创建笔记 */
+export async function createNote(number: number, content: string): Promise<{ data: { id: number } | null; error: string | null }> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/images/${number}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  return parseApiResponse<{ id: number; created_at: string }>(res);
+}
+
+/** 删除笔记 */
+export async function deleteNote(number: number, noteId: number): Promise<{ data: any | null; error: string | null }> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/images/${number}/notes/${noteId}`, { method: 'DELETE' });
+  return parseApiResponse<any>(res);
 }

@@ -4,7 +4,7 @@
 //! 给定一个 prompt token，分析其与其他 token 的共现关系，
 //! 推荐最佳搭配词，并给出示例 prompt 建议。
 
-use crate::github::{get_token, github_api};
+use crate::db;
 use crate::handlers::cluster::extract_prompt_tokens;
 use ai_gallery_core::error::ApiError;
 use ai_gallery_core::response;
@@ -15,10 +15,10 @@ use worker::*;
 
 /// GET /api/deduce/:token
 pub async fn handle_deduce(ctx: RouteContext<()>, token: &str) -> Result<Response> {
-    let t = get_token(&ctx).await;
-    if t.is_empty() {
-        return Response::from_json(&response::err(&ApiError::Unauthorized));
-    }
+    let database = match db::get_db(&ctx.env) {
+        Ok(d) => d,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
+    };
 
     if token.is_empty() {
         return Response::from_json(&response::err(&ApiError::NotFound("token".to_string())));
@@ -26,28 +26,10 @@ pub async fn handle_deduce(ctx: RouteContext<()>, token: &str) -> Result<Respons
 
     let lower_token = token.to_lowercase();
 
-    let value = match github_api(
-        &t,
-        "ai-images",
-        "GET",
-        "issues?state=open&per_page=100",
-        None,
-    )
-    .await
-    {
-        Ok(v) => v,
-        Err(e) => return Response::from_json(&response::err(&e)),
+    let records = match db::fetch_all(&database).await {
+        Ok(r) => r,
+        Err(e) => return Response::from_json(&response::err(&ApiError::Other(e.to_string()))),
     };
-
-    let issues = value
-        .as_array()
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|i| i.get("pull_request").is_none())
-        .collect::<Vec<_>>();
-
-    let records: Vec<ImageRecord> = issues.iter().filter_map(ImageRecord::from_issue).collect();
 
     // 1. 找到包含该 token 的图片
     let matched: Vec<&ImageRecord> = records

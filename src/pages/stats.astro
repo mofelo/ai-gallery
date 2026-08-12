@@ -1,145 +1,167 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import { fetchStats } from '../lib/api';
 
 const { data: stats } = await fetchStats();
 ---
 
 <Layout title="统计 — AI Gallery">
-  <div class="min-h-screen bg-neutral-950 text-neutral-100">
-    <header class="border-b border-neutral-800">
-      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-6">
-        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 画廊</a>
-        <h1 class="text-xl font-bold">📊 统计</h1>
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex items-center gap-4 mb-8">
+      <a href="/" class="btn btn-ghost !py-1.5">
+        <Icon name="chevron-left" size={16} />
+        返回
+      </a>
+      <h1 class="title-lg">统计</h1>
+    </div>
+
+    {!stats ? (
+      <div class="text-center py-24">
+        <Icon name="stats" size={48} class="text-fg-dim mx-auto" />
+        <p class="body text-fg-muted mt-4">加载中...</p>
       </div>
-    </header>
-
-    <main class="max-w-6xl mx-auto px-4 py-8">
-      {!stats ? (
-        <div class="text-center py-20 text-neutral-500">加载中...</div>
-      ) : (
-        <div class="grid md:grid-cols-2 gap-8">
-          <!-- 模型使用频率 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">🎯 模型使用频率</h2>
-            {stats.top_models.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="space-y-3">
-                {stats.top_models.slice(0, 10).map(([model, count]) => {
-                  const max = stats.top_models[0][1];
-                  const pct = Math.round((count / max) * 100);
-                  return (
-                    <div>
-                      <div class="flex justify-between text-sm mb-1">
-                        <span class="font-mono truncate">{model}</span>
-                        <span class="text-neutral-500">{count}</span>
-                      </div>
-                      <div class="h-2 bg-neutral-800 rounded-full overflow-hidden">
-                        <div class="h-full bg-sky-500 rounded-full" style={`width:${pct}%`}></div>
-                      </div>
+    ) : (
+      <div class="grid md:grid-cols-2 gap-5">
+        <!-- 模型使用频率 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="model" size={20} class="text-info" />
+            <h2 class="title-md">模型使用频率</h2>
+          </div>
+          {stats.top_models.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="space-y-3.5">
+              {stats.top_models.slice(0, 10).map(([model, count]) => {
+                const max = stats.top_models[0][1];
+                const pct = Math.round((count / max) * 100);
+                return (
+                  <div>
+                    <div class="flex justify-between body mb-1.5">
+                      <span class="mono truncate text-fg-muted">{model}</span>
+                      <span class="text-fg-dim">{count}</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <!-- 标签分布 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">🏷️ 标签分布</h2>
-            {stats.top_tags.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="flex flex-wrap gap-2">
-                {stats.top_tags.map(([tag, count]) => (
-                  <span class="bg-neutral-800 text-neutral-300 text-xs px-3 py-1.5 rounded-full">
-                    {tag} <span class="text-neutral-500">×{count}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <!-- Prompt 关键词 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">💬 Prompt 关键词频率</h2>
-            {stats.top_prompt_tokens.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="flex flex-wrap gap-2">
-                {stats.top_prompt_tokens.map(([token, count]) => {
-                  const max = stats.top_prompt_tokens[0][1];
-                  const size = Math.max(0.75, Math.min(1.5, 0.75 + (count / max) * 0.75));
-                  return (
-                    <span
-                      class="font-mono text-sky-300"
-                      style={`font-size:${size}rem`}
-                      title={`${count} 次`}
-                    >{token}</span>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <!-- 月度趋势 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">📅 每月新增</h2>
-            {stats.by_month.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="flex items-end gap-2 h-40">
-                {stats.by_month.map(([month, count]) => {
-                  const max = Math.max(...stats.by_month.map(([, c]) => c));
-                  const h = Math.round((count / max) * 100);
-                  return (
-                    <div class="flex-1 flex flex-col items-center gap-1">
-                      <span class="text-xs text-neutral-500">{count}</span>
-                      <div class="w-full bg-sky-600 rounded-t" style={`height:${h}%`}></div>
-                      <span class="text-[10px] text-neutral-600">{month.slice(2)}</span>
+                    <div class="h-2 rounded-full bg-surface-2 overflow-hidden">
+                      <div class="h-full rounded-full bg-accent-soft transition-all" style={`width:${pct}%`}></div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <!-- 采样器 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">⚙️ 采样器分布</h2>
-            {stats.top_samplers?.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="space-y-3">
-                {stats.top_samplers?.slice(0, 8).map(([sampler, count]) => (
-                  <div class="flex justify-between text-sm">
-                    <span class="font-mono">{sampler}</span>
-                    <span class="text-neutral-500">{count}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-          <!-- Seed 分布 -->
-          <section class="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-            <h2 class="font-bold mb-4">🎲 Seed 分布</h2>
-            {stats.seed_distribution.length === 0 ? (
-              <p class="text-sm text-neutral-500">暂无数据</p>
-            ) : (
-              <div class="space-y-2">
-                {stats.seed_distribution.map(([range, count]) => (
-                  <div class="flex justify-between text-xs font-mono">
-                    <span class="text-neutral-400">{range}</span>
-                    <span class="text-neutral-500">{count}</span>
+        <!-- 标签分布 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="tag" size={20} class="text-warning" />
+            <h2 class="title-md">标签分布</h2>
+          </div>
+          {stats.top_tags.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="flex flex-wrap gap-2">
+              {stats.top_tags.map(([tag, count]) => (
+                <span class="chip">
+                  {tag}
+                  <span class="text-fg-dim ml-1">×{count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <!-- Prompt 关键词词云 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="search" size={20} class="text-accent-soft" />
+            <h2 class="title-md">Prompt 关键词频率</h2>
+          </div>
+          {stats.top_prompt_tokens.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="flex flex-wrap gap-2 items-center">
+              {stats.top_prompt_tokens.map(([token, count]) => {
+                const max = stats.top_prompt_tokens[0][1];
+                const size = Math.max(0.75, Math.min(1.5, 0.75 + (count / max) * 0.75));
+                return (
+                  <span
+                    class="mono text-accent-soft transition-opacity hover:opacity-80"
+                    style={`font-size:${size}rem`}
+                    title={`${count} 次`}
+                  >{token}</span>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <!-- 月度趋势 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="calendar" size={20} class="text-success" />
+            <h2 class="title-md">每月新增</h2>
+          </div>
+          {stats.by_month.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="flex items-end gap-2 h-40">
+              {stats.by_month.map(([month, count]) => {
+                const max = Math.max(...stats.by_month.map(([, c]) => c));
+                const h = Math.round((count / max) * 100);
+                return (
+                  <div class="flex-1 flex flex-col items-center gap-1">
+                    <span class="caption">{count}</span>
+                    <div class="w-full rounded-t bg-accent/60 transition-all" style={`height:${h}%`}></div>
+                    <span class="text-[10px] text-fg-dim">{month.slice(2)}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-    </main>
-  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <!-- 采样器 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="settings" size={20} class="text-fg-muted" />
+            <h2 class="title-md">采样器分布</h2>
+          </div>
+          {stats.top_samplers?.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="space-y-3">
+              {stats.top_samplers?.slice(0, 8).map(([sampler, count]) => (
+                <div class="flex justify-between body">
+                  <span class="mono text-fg-muted">{sampler}</span>
+                  <span class="text-fg-dim">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <!-- Seed 分布 -->
+        <section class="card p-6">
+          <div class="flex items-center gap-2.5 mb-5">
+            <Icon name="seed" size={20} class="text-fg-muted" />
+            <h2 class="title-md">Seed 分布</h2>
+          </div>
+          {stats.seed_distribution.length === 0 ? (
+            <p class="body text-fg-dim">暂无数据</p>
+          ) : (
+            <div class="space-y-2.5">
+              {stats.seed_distribution.map(([range, count]) => (
+                <div class="flex justify-between body mono">
+                  <span class="text-fg-muted">{range}</span>
+                  <span class="text-fg-dim">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    )}
+  </main>
 </Layout>

@@ -60,111 +60,21 @@ pub struct ImageRecord {
     pub updated_at: Option<String>,
 }
 
-/// 从 GitHub Issue JSON 解析 ImageRecord
-///
-/// Issue body 格式：
-/// ```text
-/// ---
-/// prompt: "..."
-/// seed: 123456
-/// model: "sd3.5_medium"
-/// ---
-/// 正文描述...
-/// ```
-impl ImageRecord {
-    pub fn from_issue(issue: &serde_json::Value) -> Option<Self> {
-        let number = issue["number"].as_u64()?;
-        let title = issue["title"].as_str()?.to_string();
-        let body = issue["body"].as_str().unwrap_or("");
-        let created_at = issue["created_at"]
-            .as_str()
-            .unwrap_or("")
-            .chars()
-            .take(10)
-            .collect::<String>();
-
-        let labels: Vec<String> = issue["labels"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|l| l.as_str().map(|s| s.to_string()))
-                    .filter(|l| !l.starts_with("state:"))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        // 解析 YAML frontmatter
-        let (frontmatter, _description) = if let Some(rest) = body.strip_prefix("---") {
-            if let Some(end) = rest.find("---") {
-                let fm = &rest[..end];
-                let desc = rest[end + 3..].trim().to_string();
-                (fm.to_string(), desc)
-            } else {
-                ("".to_string(), body.to_string())
-            }
-        } else {
-            ("".to_string(), body.to_string())
-        };
-
-        // 从 frontmatter 提取字段
-        let prompt = extract_yaml_field(&frontmatter, "prompt").unwrap_or_default();
-        let negative = extract_yaml_field(&frontmatter, "negative");
-        let seed = extract_yaml_field(&frontmatter, "seed")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(0);
-        let model = extract_yaml_field(&frontmatter, "model");
-        let model_hash = extract_yaml_field(&frontmatter, "model_hash");
-        let cfg_scale = extract_yaml_field(&frontmatter, "cfg_scale")
-            .and_then(|s| s.parse().ok());
-        let steps = extract_yaml_field(&frontmatter, "steps")
-            .and_then(|s| s.parse().ok());
-        let sampler = extract_yaml_field(&frontmatter, "sampler");
-        let width = extract_yaml_field(&frontmatter, "width")
-            .and_then(|s| s.parse().ok());
-        let height = extract_yaml_field(&frontmatter, "height")
-            .and_then(|s| s.parse().ok());
-        let loras = extract_yaml_field(&frontmatter, "loras");
-        let source = extract_yaml_field(&frontmatter, "source");
-        let png_url = extract_yaml_field(&frontmatter, "png_url")
-            .or_else(|| extract_yaml_field(&frontmatter, "img_url"))
-            .unwrap_or_default();
-
-        Some(ImageRecord {
-            number,
-            title,
-            prompt,
-            negative,
-            seed,
-            model,
-            model_hash,
-            cfg_scale,
-            steps,
-            sampler,
-            width,
-            height,
-            loras,
-            source,
-            tags: labels,
-            png_url,
-            created_at,
-            updated_at: issue["updated_at"].as_str().map(|s| s.chars().take(10).collect()),
-        })
-    }
+/// 图片笔记记录（一条笔记 = 一条 GitHub Issue）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteRecord {
+    /// GitHub Issue 编号
+    pub id: u64,
+    /// 关联的图片 number（从标题 [#N] 解析）
+    pub number: u64,
+    /// 笔记内容
+    pub content: String,
+    /// 创建时间
+    pub created_at: String,
+    /// 更新时间
+    pub updated_at: String,
 }
 
-/// 简单 YAML 字段提取器（处理 frontmatter 中的 key: value 行）
-fn extract_yaml_field(frontmatter: &str, key: &str) -> Option<String> {
-    for line in frontmatter.lines() {
-        let trimmed = line.trim();
-        if let Some(stripped) = trimmed.strip_prefix(&format!("{}:", key)) {
-            let val = stripped.trim().trim_matches('"').trim().to_string();
-            if !val.is_empty() {
-                return Some(val);
-            }
-        }
-    }
-    None
-}
 
 /// 聚类结果节点
 #[derive(Debug, Serialize, Deserialize)]

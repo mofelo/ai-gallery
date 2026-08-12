@@ -1,8 +1,12 @@
 ---
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+
 interface Props {
   title?: string;
+  description?: string;
 }
-const { title = 'AI Gallery' } = Astro.props;
+const { title = 'AI Gallery', description = 'AI 生成图片管理站 — 管理、归纳、总结、推演' } = Astro.props;
 ---
 
 <!doctype html>
@@ -11,10 +15,44 @@ const { title = 'AI Gallery' } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
-    <meta name="description" content="AI 生成图片管理站 — 管理、归纳、总结、推演" />
+    <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
-  <body>
+  <body class="min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="glass sticky top-0 z-50 border-b hairline">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2.5 group">
+          <Icon name="gallery" size={22} class="text-accent transition-transform group-hover:scale-110 duration-200" />
+          <span class="font-heading text-lg font-bold tracking-tight">AI Gallery</span>
+        </a>
+        <nav class="flex items-center gap-1">
+          <a href="/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-fg-muted hover:text-fg hover:bg-surface-2 transition duration-150">
+            <Icon name="gallery" size={16} />
+            <span class="hidden sm:inline">画廊</span>
+          </a>
+          <a href="/stats" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-fg-muted hover:text-fg hover:bg-surface-2 transition duration-150">
+            <Icon name="stats" size={16} />
+            <span class="hidden sm:inline">统计</span>
+          </a>
+          <a href="/cluster" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-fg-muted hover:text-fg hover:bg-surface-2 transition duration-150">
+            <Icon name="cluster" size={16} />
+            <span class="hidden sm:inline">聚类</span>
+          </a>
+          <a href="/search" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-fg-muted hover:text-fg hover:bg-surface-2 transition duration-150">
+            <Icon name="search" size={16} />
+            <span class="hidden sm:inline">搜索</span>
+          </a>
+          <a href="/upload" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-fg-muted hover:text-fg hover:bg-surface-2 transition duration-150">
+            <Icon name="upload" size={16} />
+            <span class="hidden sm:inline">上传</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
     <slot />
   </body>
 </html>

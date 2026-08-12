@@ -3,12 +3,12 @@
 //! 命令行工具，用于：
 //! 1. 上传图片到 CloudFlare-ImgBed
 //! 2. 读取 PNG 元数据（prompt/seed/model）
-//! 3. 创建 GitHub Issue
+//! 3. 通过 Worker API 写入图片记录（数据存储在 Cloudflare D1）
 //!
 //! ## 用法
 //!
 //! ```bash
-//! # 上传图片（自动解析元数据 + 建 Issue）
+//! # 上传图片（自动解析元数据 + 写入 Worker API）
 //! cargo run -- upload path/to/image.png
 //!
 //! # 只读取元数据
@@ -19,16 +19,27 @@
 //! ```
 
 use clap::Parser;
-use ai_gallery_core::types::ImageRecord;
 
+mod client;
 mod metadata;
 mod upload;
-mod github;
+
+/// Worker API 地址（默认生产环境）
+const DEFAULT_API_BASE: &str = "https://ai-gallery-api.baobaolong12.workers.dev";
+
+/// 读取 Worker API 地址（API_BASE 环境变量，默认生产环境）
+fn get_api_base() -> String {
+    dotenv::dotenv().ok();
+    std::env::var("API_BASE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_API_BASE.to_string())
+}
 
 #[derive(Parser)]
 #[command(name = "ai-gallery-cli", about = "AI Gallery — 管理你的 AI 生成图片")]
 enum Cli {
-    /// 上传图片到 ImgBed 并自动创建 GitHub Issue
+    /// 上传图片到 ImgBed 并自动创建图片记录（Worker API -> D1）
     Upload {
         /// 图片文件路径
         file: String,
@@ -50,7 +61,7 @@ enum Cli {
         /// 图片标题（可选，默认自动从 prompt 截取）
         #[arg(long)]
         title: Option<String>,
-        /// 是否跳过上传（仅创建 Issue，使用已有 URL）
+        /// 是否跳过上传（仅创建图片记录，使用已有 URL）
         #[arg(long)]
         png_url: Option<String>,
     },
@@ -143,7 +154,7 @@ async fn handle_upload(
         std::process::exit(1);
     };
 
-    // 3. 构建 Issue
+    // 3. 构建 JSON 请求体（匹配 CreateImageRequest）
     let tags: Vec<String> = cli_tags
         .as_ref()
         .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
@@ -168,34 +179,36 @@ async fn handle_upload(
         }
     });
 
-    let body = github::build_issue_body(
-        &prompt,
-        if meta.negative.is_empty() { None } else { Some(&meta.negative) },
-        seed,
-        if model.is_empty() { None } else { Some(&model) },
-        if meta.model_hash.is_empty() { None } else { Some(&meta.model_hash) },
-        meta.cfg_scale,
-        meta.steps,
-        if meta.sampler.is_empty() { None } else { Some(&meta.sampler) },
-        meta.width,
-        meta.height,
-        if meta.loras.is_empty() { None } else { Some(&meta.loras) },
-        if source.is_empty() { None } else { Some(&source) },
-        &cdn_url,
-        &tags,
-    );
+    let body = serde_json::json!({
+        "png_url": cdn_url,
+        "prompt": prompt,
+        "negative": if meta.negative.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(meta.negative) },
+        "seed": seed,
+        "model": if model.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(model) },
+        "model_hash": if meta.model_hash.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(meta.model_hash) },
+        "cfg_scale": if meta.cfg_scale > 0.0 { serde_json::json!(meta.cfg_scale) } else { serde_json::Value::Null },
+        "steps": if meta.steps > 0 { serde_json::json!(meta.steps) } else { serde_json::Value::Null },
+        "sampler": if meta.sampler.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(meta.sampler) },
+        "width": if meta.width > 0 { serde_json::json!(meta.width) } else { serde_json::Value::Null },
+        "height": if meta.height > 0 { serde_json::json!(meta.height) } else { serde_json::Value::Null },
+        "loras": if meta.loras.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(meta.loras) },
+        "source": if source.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(source) },
+        "tags": tags,
+        "title": title,
+    });
 
-    // 4. 创建 GitHub Issue
-    println!("  📝 创建 GitHub Issue...");
-    match github::create_issue(&title, &body, &tags).await {
-        Ok(issue) => {
-            let number = issue["number"].as_u64().unwrap_or(0);
-            let html_url = issue["html_url"].as_str().unwrap_or("");
-            println!("  ✅ Issue #{} 创建成功!", number);
-            println!("  🔗 {}", html_url);
+    // 4. 写入 Worker API（D1）
+    let api_base = get_api_base();
+    println!("  📝 创建图片记录 (API: {})...", api_base);
+    match client::create_record(&api_base, body).await {
+        Ok(record) => {
+            let number = record["number"].as_u64().unwrap_or(0);
+            let created_at = record["created_at"].as_str().unwrap_or("");
+            println!("  ✅ 图片 #{} 创建成功!", number);
+            println!("  📅 {}", created_at);
         }
         Err(e) => {
-            eprintln!("  ❌ 创建 Issue 失败: {}", e);
+            eprintln!("  ❌ 创建图片记录失败: {}", e);
             std::process::exit(1);
         }
     }
@@ -259,22 +272,21 @@ fn handle_read_meta(file: String, json_output: bool) {
 
 /// 处理 List 命令
 async fn handle_list(search: Option<String>, json_output: bool) {
-    println!("📋 获取图片列表...");
+    let api_base = get_api_base();
 
-    let issues = if let Some(q) = &search {
-        match github::search_issues(q).await {
-            Ok(issues) => {
-                println!("  搜索: \"{}\"", q);
-                issues
-            }
+    let data = if let Some(q) = &search {
+        println!("📋 搜索图片: \"{}\"...", q);
+        match client::search_records(&api_base, q).await {
+            Ok(d) => d,
             Err(e) => {
                 eprintln!("❌ 搜索失败: {}", e);
                 std::process::exit(1);
             }
         }
     } else {
-        match github::list_issues().await {
-            Ok(issues) => issues,
+        println!("📋 获取图片列表...");
+        match client::list_records(&api_base, 0, 100).await {
+            Ok(d) => d,
             Err(e) => {
                 eprintln!("❌ 获取列表失败: {}", e);
                 std::process::exit(1);
@@ -282,31 +294,34 @@ async fn handle_list(search: Option<String>, json_output: bool) {
         }
     };
 
-    if issues.is_empty() {
+    let items = data["items"].as_array().cloned().unwrap_or_default();
+    let total = data["total"].as_u64().unwrap_or(items.len() as u64);
+
+    if items.is_empty() {
         println!("  (没有图片)");
         return;
     }
 
-    // 解析为 ImageRecord
-    let records: Vec<ImageRecord> = issues.iter()
-        .filter_map(|issue| ImageRecord::from_issue(issue))
-        .collect();
-
     if json_output {
-        println!("{}", serde_json::to_string_pretty(&records).unwrap());
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
     } else {
-        println!("  共 {} 张图片\n", records.len());
-        for record in &records {
-            let title = if record.title.len() > 50 {
-                format!("{}...", &record.title[..47])
+        println!("  共 {} 张图片\n", total);
+        for item in &items {
+            let raw_title = item["title"].as_str().unwrap_or("").to_string();
+            let title = if raw_title.chars().count() > 50 {
+                let truncated: String = raw_title.chars().take(47).collect();
+                format!("{}...", truncated)
             } else {
-                record.title.clone()
+                raw_title
             };
+            let number = item["number"].as_u64().unwrap_or(0);
+            let model = item["model"].as_str().unwrap_or("unknown");
+            let created_at = item["created_at"].as_str().unwrap_or("");
             println!("  #{:<5} {} ({} | {})",
-                record.number,
+                number,
                 title,
-                record.model.as_deref().unwrap_or("unknown"),
-                record.created_at,
+                model,
+                created_at,
             );
         }
     }
