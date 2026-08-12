@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <rect width="400" height="400" fill="#262626"/>
+  <circle cx="200" cy="180" r="50" fill="#404040"/>
+  <path d="M100 300 L200 220 L300 300 Z" fill="#404040"/>
+  <text x="200" y="350" text-anchor="middle" fill="#737373" font-size="14">暂无图片</text>
+</svg>

@@ -1,0 +1,8 @@
+name = "ai-gallery"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+pages_build_output_dir = "dist"
+
+[placement]
+mode = "smart"

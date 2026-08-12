@@ -1,0 +1,127 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { fetchImageDetail } from '../../lib/api';
+
+const { id } = Astro.params;
+const number = Number(id);
+const { data: img } = await fetchImageDetail(number);
+---
+
+<Layout title={img?.title || '图片详情'}>
+  <div class="min-h-screen bg-neutral-950 text-neutral-100">
+    <header class="border-b border-neutral-800">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-4">
+        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 返回画廊</a>
+        <span class="text-sm text-neutral-600"># {number}</span>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      {!img ? (
+        <div class="text-center py-20 text-neutral-500">
+          <div class="text-5xl mb-4">🔍</div>
+          <p>图片 # {number} 未找到</p>
+        </div>
+      ) : (
+        <div class="grid md:grid-cols-2 gap-8">
+          <!-- 图片 -->
+          <div class="bg-neutral-900 rounded-2xl overflow-hidden border border-neutral-800">
+            <img src={img.png_url} alt={img.title} class="w-full object-contain bg-neutral-900" />
+          </div>
+
+          <!-- 元数据面板 -->
+          <div class="space-y-6">
+            <div>
+              <h1 class="text-2xl font-bold">{img.title}</h1>
+              <div class="flex flex-wrap gap-2 mt-3">
+                {img.tags.map((tag) => (
+                  <span class="bg-neutral-800 text-neutral-300 text-xs px-2 py-1 rounded-full">{tag}</span>
+                ))}
+              </div>
+            </div>
+
+            <!-- 生成参数 -->
+            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+              <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">生成参数</div>
+              <dl class="text-sm">
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">模型</dt>
+                  <dd class="font-mono">{img.model || '-'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">种子</dt>
+                  <dd class="font-mono">{img.seed}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">CFG</dt>
+                  <dd class="font-mono">{img.cfg_scale ?? '-'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">步数</dt>
+                  <dd class="font-mono">{img.steps ?? '-'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">采样器</dt>
+                  <dd class="font-mono">{img.sampler ?? '-'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">尺寸</dt>
+                  <dd class="font-mono">{img.width ?? '?'}×{img.height ?? '?'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2 border-b border-neutral-800/50">
+                  <dt class="text-neutral-400">来源</dt>
+                  <dd class="font-mono">{img.source ?? '-'}</dd>
+                </div>
+                <div class="flex justify-between px-4 py-2">
+                  <dt class="text-neutral-400">创建时间</dt>
+                  <dd class="font-mono">{img.created_at}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Prompt -->
+            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+              <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 flex justify-between">
+                <span class="text-sm font-medium">Prompt</span>
+                <button data-copy class="text-xs text-sky-400 hover:text-sky-300">复制</button>
+              </div>
+              <p class="px-4 py-3 text-sm text-neutral-300 font-mono leading-relaxed break-words">{img.prompt}</p>
+            </div>
+
+            <!-- Negative -->
+            {img.negative && (
+              <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+                <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">Negative Prompt</div>
+                <p class="px-4 py-3 text-sm text-neutral-400 font-mono leading-relaxed break-words">{img.negative}</p>
+              </div>
+            )}
+
+            <!-- LoRA -->
+            {img.loras && (
+              <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+                <div class="px-4 py-2 bg-neutral-800/50 border-b border-neutral-800 text-sm font-medium">LoRA</div>
+                <p class="px-4 py-3 text-sm text-neutral-400 font-mono break-words">{img.loras}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </main>
+  </div>
+
+  <script>
+    document.querySelectorAll('[data-copy]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const block = btn.closest('div').parentElement.querySelector('p');
+        const text = block ? block.textContent || '' : '';
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = '已复制 ✓';
+          setTimeout(() => (btn.textContent = '复制'), 1500);
+        } catch {
+          btn.textContent = '复制失败';
+        }
+      });
+    });
+  </script>
+</Layout>

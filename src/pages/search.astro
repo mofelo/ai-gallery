@@ -1,0 +1,102 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { fetchStats } from '../lib/api';
+
+const { data: stats } = await fetchStats();
+---
+
+<Layout title="搜索 — AI Gallery">
+  <div class="min-h-screen bg-neutral-950 text-neutral-100">
+    <header class="border-b border-neutral-800">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center gap-6">
+        <a href="/" class="text-sm text-neutral-400 hover:text-white transition">← 画廊</a>
+        <h1 class="text-xl font-bold">🔍 搜索</h1>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      <!-- 搜索框 -->
+      <div class="flex gap-3 mb-8">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="搜索 prompt / 标题 / 标签 / 模型关键词..."
+          class="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-500"
+        />
+        <button
+          id="search-btn"
+          class="bg-sky-600 hover:bg-sky-500 text-white px-6 rounded-xl text-sm font-medium transition"
+        >搜索</button>
+      </div>
+
+      <!-- 快捷标签 -->
+      {stats && stats.top_tags.length > 0 && (
+        <div class="mb-8">
+          <div class="text-xs text-neutral-500 mb-2">热门标签</div>
+          <div class="flex flex-wrap gap-2">
+            {stats.top_tags.slice(0, 15).map(([tag, count]) => (
+              <button
+                data-tag={tag}
+                class="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 px-3 py-1 rounded-full text-xs text-neutral-300 transition"
+              >{tag} <span class="text-neutral-500">({count})</span></button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <!-- 结果 -->
+      <div id="results" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"></div>
+      <div id="empty" class="hidden text-center py-20 text-neutral-500">
+        <div class="text-5xl mb-4">🔎</div>
+        <p>未找到匹配图片</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API_BASE = import.meta.env.API_BASE || 'https://ai-gallery-api.tiklt1.workers.dev';
+    const resultsEl = document.getElementById('results');
+    const emptyEl = document.getElementById('empty');
+
+    async function doSearch(q: string) {
+      const sp = new URLSearchParams();
+      if (q) sp.set('q', q);
+      const res = await fetch(`${API_BASE}/api/search?${sp}`);
+      const body = await res.json();
+      const items = body.data?.items || [];
+
+      if (items.length === 0) {
+        resultsEl.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+
+      resultsEl.innerHTML = items.map((img: any) => `
+        <a href="/image/${img.number}" class="group bg-neutral-900 rounded-xl overflow-hidden border border-neutral-800 hover:border-neutral-600 transition">
+          <img src="${img.png_url}" alt="${img.title}" loading="lazy" class="w-full aspect-square object-cover group-hover:scale-105 transition duration-300" />
+          <div class="p-3">
+            <h3 class="text-sm font-medium truncate">${img.title}</h3>
+            <div class="text-xs text-neutral-500 mt-1 truncate">${img.model || '未知'}</div>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    const input = document.getElementById('search-input') as HTMLInputElement;
+    const btn = document.getElementById('search-btn');
+
+    btn.addEventListener('click', () => doSearch(input.value.trim()));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doSearch(input.value.trim());
+    });
+
+    document.querySelectorAll('[data-tag]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const tag = el.getAttribute('data-tag') || '';
+        input.value = tag;
+        doSearch(tag);
+      });
+    });
+  </script>
+</Layout>

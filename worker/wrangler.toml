@@ -1,0 +1,6 @@
+name = "ai-gallery-api"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-07-01"
+
+[env]
+vars = { RUST_BACKTRACE = "1" }

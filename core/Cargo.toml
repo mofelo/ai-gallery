@@ -1,0 +1,25 @@
+[package]
+name = "ai-gallery-core"
+version = "0.1.0"
+edition = "2021"
+description = "AI Gallery core library — data types, error handling, GitHub API wrappers"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = ["native"]
+native = ["reqwest", "tokio", "clap"]
+worker = ["dep:worker", "dep:sha2"]
+wasm = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+regex-lite = "0.1"
+tokio = { version = "1", features = ["full"], optional = true }
+reqwest = { version = "0.12", features = ["json"], optional = true }
+clap = { version = "4", features = ["derive", "env"], optional = true }
+worker = { version = "0.8", features = ["http", "axum"], optional = true }
+sha2 = { version = "0.10", optional = true }
